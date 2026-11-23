@@ -3,6 +3,40 @@
 Our CS224V project, built on the trial-matching package the CA shared. The CA's README follows unchanged below
 the setup section. See `CLAUDE.md` for project rules.
 
+## Results so far (dev split)
+
+**Dev only:** 28 patients, 188 patient–trial pairs. Budget 30 questions, no early stopping, seed 0, solver and
+answer-key simulator. Only policy-v1 has been run on test (see "Results: policy-v1" below). The v2 variants are not
+frozen. Main answer key: `gpt5_oracle`.
+
+| Policy | k=5 | k=10 | k=20 | k=30 | Accuracy AUC | Answerability AUC | Useful & answered | Not useful | Questions / patient |
+|---|---|---|---|---|---|---|---|---|---|
+| no_questions | 0.532† | 0.532† | 0.532† | 0.532† | 0.532† | – | – | – | 0 |
+| greedy_smt (CA baseline) | 0.564 | 0.564† | 0.612† | 0.691† | 0.599† | – | 46.0% | 0.0% | 28.0 |
+| **policy-v1** (`answerable_informative`, name model) | **0.622** | **0.670** | **0.745** | **0.793** | **0.700** | **0.748** | **51.1%** | **3.4%** | 26.4 |
+| v2-A: Gemini zero-shot P(answered) (`answerable_informative_llm`) | 0.617 | 0.681 | 0.729 | 0.777 | 0.694 | 0.717 | 50.2% | 7.7% | 26.5 |
+| v2-B: Gemini embeddings + v1's word features (`answerable_informative_emb`) | 0.628 | 0.670 | 0.718 | 0.787 | 0.687 | 0.766† | 53.4% | 3.8% | 26.4 |
+| *Answerability oracle (reads the key; a reference)* | *0.665†* | *0.739†* | *0.862†* | *0.910†* | *0.783†* | *1.000* | *93.8%* | *6.2%* | *20.2* |
+| *Full answer key (no budget; ceiling)* | | | | 0.957 | | | | | |
+
+- Accuracy is pair-level, with undetermined counted as eligible. Accuracy AUC is the mean accuracy over k = 0..30.
+  Answerability AUC is the held-out AUC of P(answered): answered vs unknown, each dev patient scored by a model that
+  did not see them.
+- **†** = significantly different from policy-v1 (paired bootstrap over patients, 95% CI excludes 0). Accuracy uses
+  2,000 resamples; answerability AUC uses the same patient bootstrap. Everything unmarked is within noise of v1.
+- Useful & answered / not useful: shares of all questions asked. Useful = the answer could change the trial's
+  status (the CA's rule). Not useful = could not change it (these still rule out a cohort of a multi-cohort trial).
+- **gpt5mini key (robustness),** k=30 / accuracy AUC: no_questions 0.532† / 0.532†, greedy 0.612† / 0.580,
+  v1 0.734 / 0.651, v2-A 0.723 / 0.673, v2-B 0.729 / 0.652, oracle 0.771 / 0.684. Answerability AUC: v1 0.755,
+  v2-A 0.694† (worse), v2-B 0.775† (better).
+- An embeddings-only variant of v2-B (`answerable_informative_emb_only`) is slightly worse than v1 (accuracy AUC
+  0.681, −0.020, p = .049).
+
+**Takeaway:** v1 beats greedy by about 0.10 accuracy AUC. Neither LLM variant beats v1 on accuracy. v2-B predicts
+answerability significantly better (+0.02 AUC) but that does not move accuracy. v2-A asks twice as many useless
+questions. The oracle shows better answerability is still worth up to +0.12 at k=30. Details:
+`docs/results/v2_llm_answerability_dev.md`, `docs/results/v2_embeddings_dev.md`, `docs/tuning/v1_dev_grid.md`.
+
 ## Run the demo
 
 The demo is a local web page that runs the real agent live, next to the greedy SMT baseline. It uses the solver
@@ -195,6 +229,19 @@ uv run python scripts/precompute_llm_answerability.py --split dev --limit 5    #
 uv run python scripts/precompute_llm_answerability.py --split dev --confirmed  # all dev (~214 calls, ~$0.25)
 uv run python scripts/eval_llm_answerability.py                                # AUC vs cross-fitted name model
 uv run python -m smt_trial_matching.experiment --config configs/llm_answerability_dev.yaml
+```
+
+### LLM answerability, v2 version B (`src/smt_trial_matching/llm_embeddings.py`)
+
+Each variable's name, type and meaning is embedded once with `gemini-embedding-001` (768 dimensions, through
+`LLMClient.embed`), and the embedding is a feature of the name model's two logistic regressions, next to its word
+features. Same dev labels and 5 patient folds; C and scale chosen on dev by held-out AUC. Policy:
+`answerable_informative_emb`.
+
+```bash
+uv run python scripts/precompute_embeddings.py --split dev --limit 0 --confirmed   # all dev, ~$0.03
+uv run python scripts/grid_emb_auc.py                                              # settings, no calls
+uv run python -m smt_trial_matching.experiment --config configs/llm_answerability_b_dev.yaml
 ```
 
 ### Answerability diagnostics (`src/smt_trial_matching/diagnostics.py`)
