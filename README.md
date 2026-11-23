@@ -118,6 +118,23 @@ AUC vs greedy: +0.10 (95% CI +0.03 to +0.18, patient bootstrap). Weight sweeps (
 one pair at any k. Reproduce with the `answerable_dev` command above (or `--run-id sweep_eligible_dev` from the
 sweep script's docstring).
 
+### LLM answerability, v2 version A (`src/smt_trial_matching/llm_answerability.py`)
+
+Zero-shot Gemini estimates of P(answered) and P(true) per variable, from the variable's name, type and meaning only
+(never a patient note), as an alternative to the name model. The LLM is called once per unique variable by a
+precompute script (through `llm.py`: cost log, disk cache, `MAX_RUN_USD`); policy runs only read the resulting store
+(`runs/llm_answerability/<model>__a1.jsonl`) and make no calls. Numbers keep the name model's age distribution;
+variables missing from the store fall back to the name model. Policy: `answerable_informative_llm`
+(`AnswerableConfig(answerability="llm")`); policy-v1 is unchanged.
+
+```bash
+uv run python scripts/precompute_llm_answerability.py --estimate               # calls / tokens / USD, no key
+uv run python scripts/precompute_llm_answerability.py --split dev --limit 5    # first 5 dev patients
+uv run python scripts/precompute_llm_answerability.py --split dev --confirmed  # all dev (~214 calls, ~$0.25)
+uv run python scripts/eval_llm_answerability.py                                # AUC vs cross-fitted name model
+uv run python -m smt_trial_matching.experiment --config configs/llm_answerability_dev.yaml
+```
+
 ### Answerability diagnostics (`src/smt_trial_matching/diagnostics.py`)
 
 Why the no-answerability ablation costs so little. Along `answerable_informative`'s conversations (and along
