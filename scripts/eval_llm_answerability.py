@@ -4,9 +4,10 @@ Reads the precomputed store and compares, on every dev answer-key entry whose va
 - AUC of P(answered) (answered vs unknown): LLM (zero-shot, so every dev patient is held out) vs the
   name model cross-fitted by patient (each dev patient scored by the model that did not see them);
 - AUC of P(true) on answered Bool entries; mean predicted vs observed rates (calibration at a glance).
-Writes the same numbers to runs/llm_answerability/dev_eval.json.
+Paired bootstrap CIs (2,000 resamples of dev patients, seed 0) on the AUC differences.
+Writes the same numbers to runs/llm_answerability/dev_eval_<key>.json.
 
-  uv run python scripts/eval_llm_answerability.py [--store PATH]
+  uv run python scripts/eval_llm_answerability.py [--store PATH] [--key gpt5mini]
 
 The dev policy curve is a harness run:
   uv run python -m smt_trial_matching.experiment --config configs/llm_answerability_dev.yaml
@@ -40,13 +41,36 @@ def evaluate(store: dict[str, dict], key: str = "gpt5_oracle") -> dict:
            "llm_mean_p_answered": float(np.mean([r[1] for r in rows])),
            "auc_p_answered": {"llm": float(roc_auc_score(y, [r[1] for r in rows])),
                               "name_crossfit": float(roc_auc_score(y, [r[3] for r in rows]))}}
+    out["auc_p_answered"]["llm_minus_name_ci95"] = boot_auc_diff(
+        [e.qid for e, *_ in rows], y, [r[1] for r in rows], [r[3] for r in rows])
     b = [r for r in rows if isinstance(r[0].value, bool) and r[2] is not None]
     if b and len({r[0].value for r in b}) == 2:
-        yt = [r[0].value for r in b]
+        yt = np.array([r[0].value for r in b])
         out["true_rate"] = float(np.mean(yt))
         out["auc_p_true"] = {"llm": float(roc_auc_score(yt, [r[2] for r in b])),
-                             "name_crossfit": float(roc_auc_score(yt, [r[4] for r in b]))}
+                             "name_crossfit": float(roc_auc_score(yt, [r[4] for r in b])),
+                             "llm_minus_name_ci95": boot_auc_diff(
+                                 [r[0].qid for r in b], yt, [r[2] for r in b], [r[4] for r in b])}
     return out
+
+
+def boot_auc_diff(qids: list[str], y, a: list[float], b: list[float], n: int = 2000,
+                  seed: int = 0) -> list[float]:
+    """AUC(a) - AUC(b): point estimate and 95% CI, paired bootstrap resampling patients."""
+    y, a, b = np.asarray(y), np.asarray(a), np.asarray(b)
+    groups: dict[str, list[int]] = {}
+    for i, q in enumerate(qids):
+        groups.setdefault(q, []).append(i)
+    idx = [np.array(v) for v in groups.values()]
+    rng = np.random.default_rng(seed)
+    diffs = []
+    for _ in range(n):
+        sel = np.concatenate([idx[j] for j in rng.integers(0, len(idx), len(idx))])
+        if len(set(y[sel].tolist())) == 2:
+            diffs.append(roc_auc_score(y[sel], a[sel]) - roc_auc_score(y[sel], b[sel]))
+    point = roc_auc_score(y, a) - roc_auc_score(y, b)
+    lo, hi = np.percentile(diffs, [2.5, 97.5])
+    return [round(float(point), 4), round(float(lo), 4), round(float(hi), 4)]
 
 
 def main() -> None:
@@ -58,7 +82,7 @@ def main() -> None:
     res = evaluate(load_store(__import__("pathlib").Path(path)), a.key)
     print(json.dumps(res, indent=1))
     STORE_DIR.mkdir(parents=True, exist_ok=True)
-    (STORE_DIR / "dev_eval.json").write_text(json.dumps({"store": path, **res}, indent=1))
+    (STORE_DIR / f"dev_eval_{a.key}.json").write_text(json.dumps({"store": path, **res}, indent=1))
 
 
 if __name__ == "__main__":

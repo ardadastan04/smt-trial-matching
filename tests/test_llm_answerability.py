@@ -119,5 +119,19 @@ def test_dev_eval_reports_both_aucs(tmp_path):
     path = tmp_path / "store.jsonl"
     L.precompute(L.items_for(A.load_split("dev")[:3]), FakeClient(), "fake-model", path)
     res = ev.evaluate(L.load_store(path))
-    assert res["covered"] > 0 and set(res["auc_p_answered"]) == {"llm", "name_crossfit"}
+    assert res["covered"] > 0 and set(res["auc_p_answered"]) == {"llm", "name_crossfit", "llm_minus_name_ci95"}
     assert res["auc_p_answered"]["llm"] == 0.5  # constant fake predictions carry no signal
+
+
+def test_boot_auc_diff_is_paired_by_patient():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("ev", L.ROOT / "scripts" / "eval_llm_answerability.py")
+    ev = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ev)
+    qids = ["a", "a", "b", "b", "c", "c"]
+    y = [1, 0, 1, 0, 1, 0]
+    perfect, noise = [0.9, 0.1, 0.8, 0.2, 0.7, 0.3], [0.5] * 6
+    point, lo, hi = ev.boot_auc_diff(qids, y, perfect, noise, n=200)
+    assert point == 0.5 and lo == hi == 0.5  # every resample keeps whole patients, so the gap is fixed
+    assert ev.boot_auc_diff(qids, y, perfect, perfect, n=50) == [0.0, 0.0, 0.0]
