@@ -36,6 +36,8 @@ smt-trial-matching/
                                         #   variable (names + meanings only, never notes), precomputed store
   scripts/precompute_llm_answerability.py, scripts/eval_llm_answerability.py, configs/llm_answerability_dev.yaml
   scripts/smoke_llm.py, tests/
+  demo/                     # local web demo (solver only): server.py, engine.py, phrasing.py, static/;
+                            #   ours vs greedy side by side or "you are the patient"; dev patients only
 ```
 
 ## Facts verified (2026-11-17)
