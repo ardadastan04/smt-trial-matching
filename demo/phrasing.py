@@ -109,7 +109,9 @@ def numeric_question(name: str) -> str:
 
 def bool_question(name: str, meaning: str = "") -> str:
     core, when = _split_time(name.split("@@")[0])
-    qualifier = words(name.split("@@")[1]) if "@@" in name else ""
+    # every qualifier, not just the first: "...@@extensive@@caused_by_burns" and "...@@caused_by_sloughing"
+    # are different variables and must not read as the same question
+    qualifier = ", ".join(words(q) for q in name.split("@@")[1:])
     for prefix, now_t, ever_t in _BOOL:
         if core.startswith(prefix) and len(core) > len(prefix):
             x = words(core[len(prefix):])

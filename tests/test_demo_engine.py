@@ -66,6 +66,9 @@ def test_parse_answer():
     ("patient_has_allergy_to_allergy_to_ciprofloxacin_now", "Bool", "Are you allergic to ciprofloxacin?"),
     ("patient_age_value_recorded_now_in_years", "Int", "What is your current age (in years)?"),
     ("patient_has_undergone_surgery_inthepast6months", "Bool", "Have you had surgery in the past 6 months?"),
+    ("patient_has_finding_of_skin_lesion_now@@extensive@@caused_by_burns", "Bool",
+     "Do you currently have skin lesion (extensive, caused by burns)?"),
+    ("patient_has_finding_of_jaundice_now@@visible", "Bool", "Do you currently have jaundice (visible)?"),
 ])
 def test_question_text(name, vtype, expected):
     assert question_text(name, vtype) == expected
