@@ -3,6 +3,59 @@
 Our CS224V project, built on the trial-matching package the CA shared. The CA's README follows unchanged below
 the setup section. See `CLAUDE.md` for project rules.
 
+## Run the demo
+
+The demo is a local web page that runs the real agent live, next to the greedy SMT baseline. It uses the solver
+and the answer-key simulator only, so it needs **no API key and no `.env`**, and it costs nothing to run.
+
+**1. Install the prerequisites (once).** You need git and [uv](https://docs.astral.sh/uv/). uv installs
+Python 3.11+ for you.
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh     # macOS / Linux; or: brew install uv
+```
+
+**2. Get the code and install the dependencies (once).**
+
+```bash
+git clone https://github.com/ardadastan04/smt-trial-matching.git
+cd smt-trial-matching
+uv sync
+```
+
+**3. Start the server.**
+
+```bash
+uv run python demo/server.py                       # default patient trec-202139, port 8000
+uv run python demo/server.py --qid trec-202161 --port 8010   # another dev patient / port
+```
+
+**4. Open http://localhost:8000** in a browser. Stop the server with `Ctrl+C`.
+
+**What you can do on the page:**
+- **Simulated patient:** pick a dev patient. Ours (answerable-informative) and greedy SMT ask questions side by
+  side and the answer key answers. Press **Step**, or **Autoplay** with the speed slider.
+- **You are the patient:** our agent asks you. Answer Yes, No, Not sure or a number. The "note says: …" hint shows
+  the answer key's value so you can stay consistent with the patient note.
+- Panels show the conversation, each trial's Z3 status (inclusion / exclusion per cohort, verdict, gold label),
+  **why this question** was chosen (P(answered) × value for ours), and the **solver trace** for each answer.
+- **How it works** opens a 5-step tour. Keys: `Space` step, `a` autoplay, `r` reset, `h` tour, `c` captions.
+
+Only **dev patients** are available (the server refuses test patients), and the server listens on 127.0.0.1 only,
+because the page shows TREC patient notes. `demo/README.md` has panel details and a 1-minute video script.
+
+**Troubleshooting**
+- `Address already in use`: another program uses port 8000. Add `--port 8010` and open http://localhost:8010.
+- `No module named 'smt_trial_matching'` on macOS: see the note under Setup below.
+
+**Terminal version (no browser).** `scripts/demo_conversation.py` prints one patient's conversation turn by turn:
+
+```bash
+uv run python scripts/demo_conversation.py --qid trec-202139 \
+  --policy smt_trial_matching.policies:answerable_informative --budget 10
+uv run python scripts/demo_conversation.py --qid trec-202139 --policy greedy_smt --budget 10
+```
+
 ## Setup
 
 ```bash
@@ -165,9 +218,7 @@ trial's criteria line that mentions the variable (keyword match) and a blank `Ca
 
 ### Demo UI (`demo/`)
 
-`uv run python demo/server.py`, then open http://localhost:8000. A live, solver-only web demo: ours vs greedy side by side
-on a simulated dev patient, or you play the patient. Panels show the trials' Z3 status, why each question was chosen,
-and the solver trace. See `demo/README.md` for a 1-minute video script.
+See [Run the demo](#run-the-demo) at the top of this file.
 
 ---
 
