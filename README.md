@@ -153,23 +153,32 @@ smt_trial_matching.policies:answerable_informative,smt_trial_matching.policies:o
 Tie-breaks use the same P(answered) as the score, so the first ablation cannot get answerability back through
 ties. Run both with `--config configs/ablations_dev.yaml` (reference: `answerable_informative`).
 
-### Current dev results (pre-freeze, Nov 19)
+### Results: policy-v1 (frozen Nov 22 at `ede13d9`)
 
-Dev split only (28 patients, 188 pairs), `gpt5_oracle` key, budget 30; dev patients get the cross-fitted
-answerability model. Test has not been run for our policy. Numbers will be replaced when `policy-v1` is frozen.
+`answerable_informative` was tuned on dev only (`docs/tuning/v1_dev_grid.md`: a 27-setting grid found nothing better
+than the defaults beyond noise), frozen, then run **once** on test (`docs/results/policy_v1_test.md`, which has the
+full harness summary). Budget 30 questions per patient, `gpt5_oracle` key, solver only. Test patients use the
+answerability model fit on all of dev; dev patients use the cross-fitted fold models.
 
-| Policy | k=5 | k=10 | k=20 | k=30 | Useful, answered |
-|---|---|---|---|---|---|
-| no_questions | 0.532 | 0.532 | 0.532 | 0.532 | – |
-| greedy_smt | 0.564 | 0.564 | 0.612 | 0.691 | 46% |
-| **answerable_informative** | **0.622** | **0.670** | **0.745** | **0.793** | **51%** |
-| oracle_answerable_greedy (reads the key) | 0.580 | 0.649 | 0.750 | 0.803 | 100% |
-| ask_all (full information, no budget) | – | – | – | 0.96 | – |
+| Policy | Dev k=10 | Dev k=30 | Dev AUC | **Test k=10** | **Test k=30** | **Test AUC** |
+|---|---|---|---|---|---|---|
+| no_questions | 0.532 | 0.532 | 0.532 | 0.514 | 0.514 | 0.514 |
+| random_stop | – | – | – | 0.554 | 0.646 | 0.580 |
+| greedy_smt (CA baseline) | 0.564 | 0.691 | 0.600 | 0.594 | 0.646 | 0.599 |
+| **answerable_informative (policy-v1)** | **0.670** | **0.793** | **0.699** | **0.640** | **0.760** | **0.663** |
+| oracle_answerable_greedy (reads the key) | 0.649 | 0.803 | 0.686 | 0.669 | 0.749 | 0.672 |
+| answerable_informative_oracle (reads the key) | – | – | – | 0.737 | 0.857 | 0.756 |
+| ask_all (full information, no budget) | – | 0.96 | – | – | 0.96 | – |
 
-AUC vs greedy: +0.10 (95% CI +0.03 to +0.18, patient bootstrap). Weight sweeps (`scripts/sweep_cohort_credit.py`,
-`scripts/sweep_eligible_credit.py`): `w_cohort` 0.5–1.0 and `w_eligible` 0–0.2 change dev accuracy by at most
-one pair at any k. Reproduce with the `answerable_dev` command above (or `--run-id sweep_eligible_dev` from the
-sweep script's docstring).
+Test, policy-v1 minus greedy_smt (paired bootstrap over patients, 95% CI):
+- k=30: **+0.114 [+0.01, +0.22], p = .034** (McNemar 23 vs 3 pairs, p < .001). Significant.
+- k=10: +0.046 [−0.03, +0.13]; AUC: +0.064 [−0.01, +0.14], p = .091. Positive, not significant.
+- `gpt5mini` key: k=30 +0.103 [+0.02, +0.17], p = .023; AUC +0.045, not significant.
+- Useful and answered questions: 51% (ours) vs 43% (greedy), at 21.6 vs 20.8 questions per patient.
+
+The dev AUC gap (+0.10) shrank on test (+0.06). The answerability oracle (+0.16 AUC over greedy on test) shows that
+better P(answered) prediction is the largest remaining lever (v2). The oracles read the answer key, so they are
+references, not methods or ceilings.
 
 ### LLM answerability, v2 version A (`src/smt_trial_matching/llm_answerability.py`)
 
