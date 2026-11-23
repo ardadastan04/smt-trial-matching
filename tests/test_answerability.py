@@ -107,3 +107,11 @@ def test_age_scores_by_share_outside_the_range_not_flat() -> None:
     assert abs(score_question(s, AGE, m, cfg) - expected) < 1e-9
     assert score_question(s, AGE, m, cfg) < score_question(
         s, "patient_is_included_in_obesity_surgery_program_now", m, cfg)
+
+
+def test_tuning_knob_defaults_reproduce_policy():
+    from smt_trial_matching.policies import AnswerableConfig
+    cfg = AnswerableConfig()
+    assert cfg.alpha == 1.0 and cfg.answerability_c == A.C_DEFAULT
+    assert A.fit_default() is A.fit_default("gpt5_oracle", A.C_DEFAULT)
+    assert A.fit_default(c=1.0) is not A.fit_default()

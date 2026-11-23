@@ -76,6 +76,9 @@ class AnswerableConfig:
     w_cohort: float = 1.0
     w_eligible: float = 0.2  # the answer would make the trial certainly eligible (ends its questions)
     w_numeric: float = 0.3  # fallback for a number with no value distribution (see _numeric_value)
+    # v1 tuning knobs (Nov 22; defaults reproduce the policy exactly, see scripts/tune_v1_grid.py):
+    alpha: float = 1.0  # score = P(answered) ** alpha x value; 0 ignores answerability, 2 favours it more
+    answerability_c: float = 0.3  # inverse regularisation of the answerability model (= answerability.C_DEFAULT)
     # Ablation switches (Nov 19, Person B; defaults = the policy as tuned):
     use_answerability: bool = True  # False: P(answered) = 1 for every variable (informativeness x value)
     use_value: bool = True  # False: value = 1 if some answer could decide something, else 0 (answerability only)
@@ -148,6 +151,8 @@ def score_question(state: Any, var: str, model: Any, cfg: AnswerableConfig,
         p_ans = p_pred if cfg.use_answerability else 1.0
     if p_ans == 0:
         return 0.0
+    if cfg.alpha != 1.0:
+        p_ans = p_ans ** cfg.alpha
     if not cfg.use_value:
         return p_ans * _could_decide(state, var, open_c, model, cfg)
     if vtype != "Bool":
@@ -185,7 +190,7 @@ class AnswerableInformative:
     def __call__(self, states: dict, asked: set, rng: Any) -> tuple[str, str] | None:
         from smt_trial_matching.answerability import model_for
 
-        model = model_for(states)
+        model = model_for(states, c=self.cfg.answerability_c)
         best, best_key = None, (0.0, 0.0, "", "")
         for n in _undetermined(states):
             for v in candidate_questions(states[n]):

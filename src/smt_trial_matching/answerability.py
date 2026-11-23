@@ -185,10 +185,15 @@ def _value_distributions(examples: list[Example]) -> dict[str, list[tuple[float,
     return out
 
 
-@cache
-def fit_default(key: str = "gpt5_oracle") -> AnswerabilityModel:
+def fit_default(key: str = "gpt5_oracle", c: float = C_DEFAULT) -> AnswerabilityModel:
     """The model policies use: fit on the dev split's answer key only."""
-    return AnswerabilityModel().fit(load_examples(load_split("dev"), key))
+    return _fit_all(key, float(c))
+
+
+@cache
+def _fit_all(key: str, c: float) -> AnswerabilityModel:
+    # Cached on positional (key, c) only, so every spelling of a fit_default call shares one model.
+    return AnswerabilityModel(c=c).fit(load_examples(load_split("dev"), key))
 
 
 @cache
@@ -205,17 +210,23 @@ def dev_fold(qid: str) -> int | None:
     return dev.index(qid) % FOLDS if qid in dev else None
 
 
+def _fold_model(fold: int, key: str = "gpt5_oracle", c: float = C_DEFAULT) -> AnswerabilityModel:
+    return _fit_fold(fold, key, float(c))
+
+
 @cache
-def _fold_model(fold: int, key: str = "gpt5_oracle") -> AnswerabilityModel:
+def _fit_fold(fold: int, key: str, c: float) -> AnswerabilityModel:
     train = [q for q in load_split("dev") if dev_fold(q) != fold]
-    return AnswerabilityModel().fit(load_examples(train, key))
+    return AnswerabilityModel(c=c).fit(load_examples(train, key))
 
 
-def model_for(trials: Iterable[str], key: str = "gpt5_oracle") -> AnswerabilityModel:
-    """The model to use for the patient whose candidate trials are ``trials`` (see module doc)."""
+def model_for(trials: Iterable[str], key: str = "gpt5_oracle",
+              c: float = C_DEFAULT) -> AnswerabilityModel:
+    """The model to use for the patient whose candidate trials are ``trials`` (see module doc).
+    ``c`` is the logistic regressions' inverse regularisation (AnswerableConfig.answerability_c)."""
     qid = _patient_trials().get(frozenset(trials))
     fold = dev_fold(qid) if qid else None
-    return fit_default(key) if fold is None else _fold_model(fold, key)
+    return fit_default(key, c) if fold is None else _fold_model(fold, key, c)
 
 
 def crossfit_auc(qids: list[str], folds: int = FOLDS, key: str = "gpt5_oracle") -> dict[str, float]:
