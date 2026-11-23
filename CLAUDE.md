@@ -35,6 +35,9 @@ smt-trial-matching/
   src/smt_trial_matching/llm_answerability.py  # v2 version A: zero-shot Gemini P(answered)/P(true) per
                                         #   variable (names + meanings only, never notes), precomputed store
   scripts/precompute_llm_answerability.py, scripts/eval_llm_answerability.py, configs/llm_answerability_dev.yaml
+  src/smt_trial_matching/llm_embeddings.py  # v2 version B: Gemini embeddings of variable text as features of
+                                        #   v1's regressions, same dev folds; scripts/precompute_embeddings.py,
+                                        #   scripts/grid_emb_auc.py, configs/llm_answerability_b_dev.yaml
   scripts/smoke_llm.py, tests/
   demo/                     # local web demo (solver only): server.py, engine.py, phrasing.py, static/;
                             #   ours vs greedy side by side or "you are the patient"; dev patients only

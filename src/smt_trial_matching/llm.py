@@ -86,6 +86,19 @@ def throttle() -> Throttle:
 
 ModelAlias = Literal["cheap", "strong"]
 
+#: Embeddings (v2 version B). Model and price from .env, with these defaults
+#: (ai.google.dev/gemini-api/docs/pricing lists gemini-embedding-001 at $0.15 per M input
+#: tokens; verify against the bill). Embeddings have no output tokens.
+DEFAULT_EMBED_MODEL = "gemini-embedding-001"
+DEFAULT_EMBED_USD_PER_MTOK = 0.15
+#: Texts per embeddings request.
+EMBED_BATCH = 100
+
+
+def embed_model() -> str:
+    load_env()
+    return os.getenv("EMBED_MODEL") or DEFAULT_EMBED_MODEL
+
 _env_loaded = False
 
 
@@ -547,6 +560,64 @@ class LLMClient:
             return self._openai().chat.completions.create(
                 model=model_id, messages=messages, **params
             )
+        except APIStatusError as exc:
+            if exc.status_code in (408, 429, 500, 502, 503, 504):
+                raise APIConnectionError(request=exc.request) from exc
+            raise
+
+    def embed(
+        self,
+        texts: list[str],
+        *,
+        model: str | None = None,
+        dimensions: int | None = None,
+        tag: str = "",
+        use_cache: bool = True,
+    ) -> list[list[float]]:
+        """Embedding vectors for ``texts``, in order. Cached per text; one cost line per request.
+
+        Priced at EMBED_MODEL_USD_PER_MTOK (default $0.15 per M input tokens)."""
+        model_id = model or embed_model()
+        params: dict[str, Any] = {"dimensions": dimensions} if dimensions else {}
+        rate = _env_float("EMBED_MODEL_USD_PER_MTOK", DEFAULT_EMBED_USD_PER_MTOK)
+        out: list[list[float] | None] = [None] * len(texts)
+        todo: list[tuple[int, str, str]] = []
+        for i, text in enumerate(texts):
+            key = cache_key(model_id, [{"role": "embed", "content": text}], params)
+            hit = self.cache.get(key) if use_cache else None
+            if hit is not None:
+                out[i] = hit["embedding"]
+            else:
+                todo.append((i, text, key))
+        if len(todo) < len(texts):
+            self._log(Completion("", model_id, 0, 0, 0.0, True, 0.0), tag)
+        for start in range(0, len(todo), EMBED_BATCH):
+            batch = todo[start:start + EMBED_BATCH]
+            self.budget.check()
+            throttle().wait()
+            started = time.monotonic()
+            response = self._create_embeddings([t for _, t, _ in batch], model_id, params)
+            latency = time.monotonic() - started
+            tokens = getattr(response.usage, "prompt_tokens", 0) or 0
+            if not tokens:  # some endpoints omit usage; estimate at 4 characters per token
+                tokens = sum(len(t) for _, t, _ in batch) // 4
+            for (i, _, key), item in zip(batch, response.data, strict=True):
+                out[i] = list(item.embedding)
+                if use_cache:
+                    self.cache.put(key, {"embedding": out[i], "model": model_id})
+            self._log(Completion("", model_id, tokens, 0, tokens * rate / 1_000_000, False,
+                                 latency), tag)
+        return [v for v in out if v is not None]
+
+    @retry(
+        retry=retry_if_exception_type(_TRANSIENT),
+        stop=stop_after_attempt(6),
+        wait=wait_exponential(multiplier=1, min=2, max=45),
+        reraise=True,
+    )
+    def _create_embeddings(self, texts: list[str], model_id: str, params: dict[str, Any]) -> Any:
+        try:
+            return self._openai().embeddings.create(model=model_id, input=texts, **params)
         except APIStatusError as exc:
             if exc.status_code in (408, 429, 500, 502, 503, 504):
                 raise APIConnectionError(request=exc.request) from exc

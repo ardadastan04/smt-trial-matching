@@ -25,6 +25,16 @@ from smt_trial_matching.answerability import _fold_model, dev_fold, load_example
 from smt_trial_matching.llm_answerability import STORE_DIR, default_model_id, load_store, store_path
 
 
+def _emb_predictors(key: str) -> dict:
+    """Version B fold models at the chosen settings, if the embedding store exists."""
+    from smt_trial_matching.llm_embeddings import CHOSEN, default_store, fold_model
+
+    if not default_store().exists():
+        return {}
+    return {f"emb_{m}": (lambda e, m=m, c=c, s=s: fold_model(dev_fold(e.qid), m, c, s, key)
+                         .predict(e.name, e.vtype)) for m, (c, s) in CHOSEN.items()}
+
+
 def evaluate(store: dict[str, dict], key: str = "gpt5_oracle") -> dict:
     by = {(r["name"], r["vtype"]): r for r in store.values()}
     rows = []
@@ -36,14 +46,21 @@ def evaluate(store: dict[str, dict], key: str = "gpt5_oracle") -> dict:
         rows.append((e, r["p_answered"], r["p_true"], name_pa, name_pt))
     if not rows:
         return {"covered": 0}
+    emb = {n: [f(e) for e, *_ in rows] for n, f in _emb_predictors(key).items()}
     y = np.array([e.value is not None for e, *_ in rows])
     out = {"covered": len(rows), "answered_rate": float(y.mean()),
            "llm_mean_p_answered": float(np.mean([r[1] for r in rows])),
            "auc_p_answered": {"llm": float(roc_auc_score(y, [r[1] for r in rows])),
                               "name_crossfit": float(roc_auc_score(y, [r[3] for r in rows]))}}
-    out["auc_p_answered"]["llm_minus_name_ci95"] = boot_auc_diff(
-        [e.qid for e, *_ in rows], y, [r[1] for r in rows], [r[3] for r in rows])
-    b = [r for r in rows if isinstance(r[0].value, bool) and r[2] is not None]
+    qids = [e.qid for e, *_ in rows]
+    name_pa = [r[3] for r in rows]
+    out["auc_p_answered"]["llm_minus_name_ci95"] = boot_auc_diff(qids, y, [r[1] for r in rows], name_pa)
+    for n, preds in emb.items():
+        pa = [p[0] for p in preds]
+        out["auc_p_answered"][n] = float(roc_auc_score(y, pa))
+        out["auc_p_answered"][f"{n}_minus_name_ci95"] = boot_auc_diff(qids, y, pa, name_pa)
+    bi = [i for i, r in enumerate(rows) if isinstance(r[0].value, bool) and r[2] is not None]
+    b = [rows[i] for i in bi]
     if b and len({r[0].value for r in b}) == 2:
         yt = np.array([r[0].value for r in b])
         out["true_rate"] = float(np.mean(yt))
@@ -51,6 +68,11 @@ def evaluate(store: dict[str, dict], key: str = "gpt5_oracle") -> dict:
                              "name_crossfit": float(roc_auc_score(yt, [r[4] for r in b])),
                              "llm_minus_name_ci95": boot_auc_diff(
                                  [r[0].qid for r in b], yt, [r[2] for r in b], [r[4] for r in b])}
+        for n, preds in emb.items():
+            pt = [preds[i][1] for i in bi]
+            out["auc_p_true"][n] = float(roc_auc_score(yt, pt))
+            out["auc_p_true"][f"{n}_minus_name_ci95"] = boot_auc_diff(
+                [r[0].qid for r in b], yt, pt, [r[4] for r in b])
     return out
 
 
