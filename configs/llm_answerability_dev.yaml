@@ -1,0 +1,15 @@
+# v2 version A: policy-v1 scoring with zero-shot LLM answerability, dev only (solver run; the LLM was
+# called beforehand by scripts/precompute_llm_answerability.py, so this run makes no LLM calls).
+# Needs the store for every dev variable (precompute --split dev --confirmed). Variables missing from
+# the store fall back to the name model.
+#   uv run python -m smt_trial_matching.experiment --config configs/llm_answerability_dev.yaml
+run_id: llm_answerability_dev
+split: dev
+budget: 30
+keys: [gpt5_oracle, gpt5mini]
+reference: smt_trial_matching.policies:answerable_informative
+policies:
+  - greedy_smt
+  - smt_trial_matching.policies:answerable_informative
+  - smt_trial_matching.policies:answerable_informative_llm
+  - smt_trial_matching.policies:answerable_informative_oracle

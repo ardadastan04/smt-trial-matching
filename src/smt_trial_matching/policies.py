@@ -79,6 +79,9 @@ class AnswerableConfig:
     # v1 tuning knobs (Nov 22; defaults reproduce the policy exactly, see scripts/tune_v1_grid.py):
     alpha: float = 1.0  # score = P(answered) ** alpha x value; 0 ignores answerability, 2 favours it more
     answerability_c: float = 0.3  # inverse regularisation of the answerability model (= answerability.C_DEFAULT)
+    # v2 (Nov 22): which P(answered)/P(true) source. "name" = policy-v1's name model; "llm" = zero-shot
+    # Gemini predictions from a precomputed store (llm_answerability.py), never patient notes.
+    answerability: str = "name"
     # Ablation switches (Nov 19, Person B; defaults = the policy as tuned):
     use_answerability: bool = True  # False: P(answered) = 1 for every variable (informativeness x value)
     use_value: bool = True  # False: value = 1 if some answer could decide something, else 0 (answerability only)
@@ -190,7 +193,12 @@ class AnswerableInformative:
     def __call__(self, states: dict, asked: set, rng: Any) -> tuple[str, str] | None:
         from smt_trial_matching.answerability import model_for
 
-        model = model_for(states, c=self.cfg.answerability_c)
+        if self.cfg.answerability == "llm":
+            from smt_trial_matching.llm_answerability import llm_model_for
+
+            model = llm_model_for(states, c=self.cfg.answerability_c)
+        else:
+            model = model_for(states, c=self.cfg.answerability_c)
         best, best_key = None, (0.0, 0.0, "", "")
         for n in _undetermined(states):
             for v in candidate_questions(states[n]):
@@ -218,6 +226,10 @@ answerable_informative = AnswerableInformative()
 # Ablations (Nov 19): the same policy with one factor switched off.
 answerable_informative_no_answerability = AnswerableInformative(AnswerableConfig(use_answerability=False))
 answerable_informative_no_value = AnswerableInformative(AnswerableConfig(use_value=False))
+
+# v2 version A (Nov 22): the frozen policy-v1 scoring with zero-shot LLM answerability. Needs the store
+# from scripts/precompute_llm_answerability.py. Dev only until a v2 freeze.
+answerable_informative_llm = AnswerableInformative(AnswerableConfig(answerability="llm"))
 
 
 def answerable_informative_oracle(states: dict, asked: set, rng: Any) -> tuple[str, str] | None:

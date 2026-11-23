@@ -32,6 +32,9 @@ smt-trial-matching/
   scripts/demo_conversation.py, scripts/failure_sample.py
   src/smt_trial_matching/answerability.py  # P(answered), P(true) from variable names; fit on dev only,
                                         #   5-fold cross-fit by patient for dev patients
+  src/smt_trial_matching/llm_answerability.py  # v2 version A: zero-shot Gemini P(answered)/P(true) per
+                                        #   variable (names + meanings only, never notes), precomputed store
+  scripts/precompute_llm_answerability.py, scripts/eval_llm_answerability.py, configs/llm_answerability_dev.yaml
   scripts/smoke_llm.py, tests/
 ```
 
