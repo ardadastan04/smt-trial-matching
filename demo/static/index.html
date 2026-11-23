@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Conversational trial matching with SMT state</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <div class="title">Conversational trial matching</div>
+    <div class="subtitle">SMT solver state over each trial's eligibility program</div>
+  </div>
+  <div class="controls">
+    <label class="field">Patient
+      <select id="patient"></select>
+    </label>
+    <div class="seg" role="group" aria-label="Who answers">
+      <button id="mode-sim" class="on" title="Answers come from the answer key; ours vs greedy side by side">Simulated patient</button>
+      <button id="mode-manual" title="You answer our agent's questions">You are the patient</button>
+    </div>
+    <button id="btn-step" class="primary" title="Space">Step ▸</button>
+    <button id="btn-play" title="A">Autoplay ▶</button>
+    <label class="field speed">Speed
+      <input id="speed" type="range" min="0" max="4" step="1" value="2">
+    </label>
+    <button id="btn-reset" title="R">Reset</button>
+    <button id="btn-tour" title="H">How it works</button>
+    <label class="toggle"><input id="captions" type="checkbox" checked> Captions</label>
+  </div>
+</header>
+
+<div id="caption" class="caption" aria-live="polite"></div>
+
+<section class="patient">
+  <div class="patient-head">
+    <span class="tag">Patient <b id="qid"></b> · dev split</span>
+    <span class="hint">The simulated patient knows only what is in this note: when the note doesn't settle a question, the answer is "not sure".</span>
+    <button id="note-toggle" class="link">show full note</button>
+  </div>
+  <p id="note" class="note clamp"></p>
+</section>
+
+<main id="columns" class="columns"></main>
+
+<div id="tour" class="tour hidden" role="dialog" aria-modal="true">
+  <div class="tour-card">
+    <div class="tour-step" id="tour-step"></div>
+    <h2 id="tour-title"></h2>
+    <p id="tour-body"></p>
+    <div class="tour-nav">
+      <button id="tour-prev">◂ Back</button>
+      <span id="tour-dots"></span>
+      <button id="tour-next" class="primary">Next ▸</button>
+    </div>
+  </div>
+</div>
+
+<template id="col-tpl">
+  <section class="col">
+    <div class="col-head">
+      <h2 class="agent-name"></h2>
+      <div class="score" data-region="score">
+        <span class="chip"><b data-k="turns">0</b>/30 questions</span>
+        <span class="chip warn"><b data-k="unknown">0</b> unanswered</span>
+        <span class="chip"><b data-k="decided">0</b>/<i data-k="n"></i> decided</span>
+        <span class="chip good"><b data-k="correct">0</b>/<i data-k="n"></i> correct</span>
+      </div>
+    </div>
+    <div class="col-body">
+      <div class="panel chat-panel" data-region="chat">
+        <div class="panel-title"><span class="num">1</span> Conversation</div>
+        <div class="panel-help">One fact per question. Each answer becomes a solver assumption.</div>
+        <div class="chat"></div>
+        <div class="answer-bar hidden"></div>
+      </div>
+      <div class="side">
+        <div class="panel" data-region="trials">
+          <div class="panel-title"><span class="num">2</span> Candidate trials: live solver status</div>
+          <div class="panel-help">Each cohort has an inclusion and an exclusion program. Undetermined counts as eligible.</div>
+          <div class="trials"></div>
+        </div>
+        <div class="panel" data-region="rank">
+          <div class="panel-title"><span class="num">3</span> Why this question? <span class="rank-sub"></span></div>
+          <div class="panel-help rank-help"></div>
+          <div class="rank"></div>
+        </div>
+        <div class="panel" data-region="trace">
+          <div class="panel-title"><span class="num">4</span> Solver trace (Z3)</div>
+          <div class="panel-help">Two checks per program: can the criteria still hold (B∧A∧C)? Must they hold (B∧A∧¬C)?</div>
+          <div class="trace"><div class="empty">The solver's reasoning about the last answer shows up here.</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+</template>
+
+<script src="app.js"></script>
+</body>
+</html>

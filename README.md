@@ -163,6 +163,12 @@ status and verdict after the turn. `failure_sample.md` lists 15 random useful-bu
 `greedy_smt` and `answerable_informative`, and every pair where exactly one of the two is right at k = 30, with the
 trial's criteria line that mentions the variable (keyword match) and a blank `Category:` line per item.
 
+### Demo UI (`demo/`)
+
+`uv run python demo/server.py`, then open http://localhost:8000. A live, solver-only web demo: ours vs greedy side by side
+on a simulated dev patient, or you play the patient. Panels show the trials' Z3 status, why each question was chosen,
+and the solver trace. See `demo/README.md` for a 1-minute video script.
+
 ---
 
 A self-contained student project. An agent talks with a patient and asks questions, keeping everything it learns as
