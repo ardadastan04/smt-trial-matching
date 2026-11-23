@@ -142,3 +142,44 @@ class TestBudgetGuard:
     def test_projection_is_zero_before_any_call(self, tmp_path) -> None:
         log = CostLog("t", runs_dir=tmp_path)
         assert BudgetGuard(1.0, log).projected_usd(60) == 0.0
+
+
+class TestEmbed:
+    """LLMClient.embed with the network call replaced: batching, cache, cost lines."""
+
+    def _client(self, tmp_path, monkeypatch):
+        from types import SimpleNamespace
+
+        from smt_trial_matching import llm
+
+        monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+        monkeypatch.setenv("LLM_BACKEND", "gemini_api")
+        monkeypatch.setattr(llm, "EMBED_BATCH", 2)
+        calls = []
+
+        def fake(self, texts, model_id, params):
+            calls.append(list(texts))
+            return SimpleNamespace(usage=SimpleNamespace(prompt_tokens=1000 * len(texts)),
+                                   data=[SimpleNamespace(embedding=[float(len(t)), 1.0]) for t in texts])
+
+        monkeypatch.setattr(llm.LLMClient, "_create_embeddings", fake)
+        client = llm.LLMClient("emb_test", cache=DiskCache(tmp_path / "cache"), runs_dir=tmp_path,
+                               max_run_usd=1.0)
+        client_throttle = llm.Throttle(0)
+        monkeypatch.setattr(llm, "throttle", lambda: client_throttle)
+        return client, calls
+
+    def test_batches_in_order_and_prices(self, tmp_path, monkeypatch) -> None:
+        client, calls = self._client(tmp_path, monkeypatch)
+        out = client.embed(["a", "bb", "ccc"], model="m", tag="t")
+        assert [v[0] for v in out] == [1.0, 2.0, 3.0]
+        assert calls == [["a", "bb"], ["ccc"]]
+        assert client.cost_log.calls == 2
+        assert client.cost_log.total_usd == pytest.approx(3000 * 0.15 / 1e6)
+
+    def test_second_call_is_cached(self, tmp_path, monkeypatch) -> None:
+        client, calls = self._client(tmp_path, monkeypatch)
+        client.embed(["a", "bb"], model="m")
+        out = client.embed(["bb", "a", "dddd"], model="m")
+        assert [v[0] for v in out] == [2.0, 1.0, 4.0]
+        assert calls == [["a", "bb"], ["dddd"]]

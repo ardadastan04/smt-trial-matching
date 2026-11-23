@@ -82,6 +82,9 @@ class AnswerableConfig:
     # v2 (Nov 22): which P(answered)/P(true) source. "name" = policy-v1's name model; "llm" = zero-shot
     # Gemini predictions from a precomputed store (llm_answerability.py), never patient notes.
     answerability: str = "name"
+    # v2 version B (Nov 23): answerability "emb" / "name_emb" = v1's regressions with Gemini embeddings of
+    # the variable text as features (llm_embeddings.py); emb_scale weights the unit-norm embedding.
+    emb_scale: float = 1.0
     # Ablation switches (Nov 19, Person B; defaults = the policy as tuned):
     use_answerability: bool = True  # False: P(answered) = 1 for every variable (informativeness x value)
     use_value: bool = True  # False: value = 1 if some answer could decide something, else 0 (answerability only)
@@ -197,6 +200,11 @@ class AnswerableInformative:
             from smt_trial_matching.llm_answerability import llm_model_for
 
             model = llm_model_for(states, c=self.cfg.answerability_c)
+        elif self.cfg.answerability in ("emb", "name_emb"):
+            from smt_trial_matching.llm_embeddings import emb_model_for
+
+            model = emb_model_for(states, self.cfg.answerability, self.cfg.answerability_c,
+                                  self.cfg.emb_scale)
         else:
             model = model_for(states, c=self.cfg.answerability_c)
         best, best_key = None, (0.0, 0.0, "", "")
@@ -230,6 +238,13 @@ answerable_informative_no_value = AnswerableInformative(AnswerableConfig(use_val
 # v2 version A (Nov 22): the frozen policy-v1 scoring with zero-shot LLM answerability. Needs the store
 # from scripts/precompute_llm_answerability.py. Dev only until a v2 freeze.
 answerable_informative_llm = AnswerableInformative(AnswerableConfig(answerability="llm"))
+
+# v2 version B (Nov 23): v1 scoring; answerability = v1's regressions with Gemini embeddings of the variable
+# text (with v1's word features, or alone). C and scale chosen on dev (llm_embeddings.CHOSEN). Dev only.
+answerable_informative_emb = AnswerableInformative(
+    AnswerableConfig(answerability="name_emb", answerability_c=0.1, emb_scale=3.0))
+answerable_informative_emb_only = AnswerableInformative(
+    AnswerableConfig(answerability="emb", answerability_c=1.0, emb_scale=1.0))
 
 
 def answerable_informative_oracle(states: dict, asked: set, rng: Any) -> tuple[str, str] | None:

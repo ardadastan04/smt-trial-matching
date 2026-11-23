@@ -1,0 +1,17 @@
+# v2 version B: policy-v1 scoring with answerability from v1's regressions plus Gemini embeddings of each
+# variable's text (llm_embeddings.py), against v1, version A and greedy. Dev only (solver run; embeddings
+# were computed beforehand by scripts/precompute_embeddings.py, so this run makes no LLM calls).
+#   uv run python -m smt_trial_matching.experiment --config configs/llm_answerability_b_dev.yaml
+# For paired tests against greedy add: --run-id llm_answerability_b_dev_vs_greedy --reference greedy_smt
+run_id: llm_answerability_b_dev
+split: dev
+budget: 30
+keys: [gpt5_oracle, gpt5mini]
+reference: smt_trial_matching.policies:answerable_informative
+policies:
+  - greedy_smt
+  - smt_trial_matching.policies:answerable_informative
+  - smt_trial_matching.policies:answerable_informative_llm
+  - smt_trial_matching.policies:answerable_informative_emb
+  - smt_trial_matching.policies:answerable_informative_emb_only
+  - smt_trial_matching.policies:answerable_informative_oracle
