@@ -16,6 +16,9 @@ frozen. Main answer key: `gpt5_oracle`.
 | **policy-v1** (`answerable_informative`, name model) | **0.622** | **0.670** | **0.745** | **0.793** | **0.700** | **0.748** | **51.1%** | **3.4%** | 26.4 |
 | v2-A: Gemini zero-shot P(answered) (`answerable_informative_llm`) | 0.617 | 0.681 | 0.729 | 0.777 | 0.694 | 0.717 | 50.2% | 7.7% | 26.5 |
 | v2-B: Gemini embeddings + v1's word features (`answerable_informative_emb`) | 0.628 | 0.670 | 0.718 | 0.787 | 0.687 | 0.766† | 53.4% | 3.8% | 26.4 |
+| *Ablations (dev) of policy-v1:* | | | | | | | | | |
+| v1 without answerability (P(answered) = 1; `..._no_answerability`) | 0.628 | 0.670 | 0.723 | 0.793 | 0.695 | – | 41.3% | 2.0% | 27.4 |
+| v1 without value weighting (answerability only; `..._no_value`) | 0.612 | 0.633 | 0.665† | 0.718† | 0.649† | 0.748 | 59.3% | 8.2% | 26.1 |
 | *Answerability oracle (reads the key; a reference)* | *0.665†* | *0.739†* | *0.862†* | *0.910†* | *0.783†* | *1.000* | *93.8%* | *6.2%* | *20.2* |
 | *Full answer key (no budget; ceiling)* | | | | 0.957 | | | | | |
 
@@ -29,6 +32,9 @@ frozen. Main answer key: `gpt5_oracle`.
 - **gpt5mini key (robustness),** k=30 / accuracy AUC: no_questions 0.532† / 0.532†, greedy 0.612† / 0.580,
   v1 0.734 / 0.651, v2-A 0.723 / 0.673, v2-B 0.729 / 0.652, oracle 0.771 / 0.684. Answerability AUC: v1 0.755,
   v2-A 0.694† (worse), v2-B 0.775† (better).
+- **Ablations** (`configs/ablations_dev.yaml`, `docs/results/ablations_dev.md`): removing answerability changes
+  nothing (AUC −0.005, p = .78); removing value weighting costs about 5 points (AUC −0.051, p = .027). On `gpt5mini`
+  neither ablation differs from v1 (both −0.01 AUC, n.s.). Dev only; not run on test.
 - An embeddings-only variant of v2-B (`answerable_informative_emb_only`) is slightly worse than v1 (accuracy AUC
   0.681, −0.020, p = .049).
 
